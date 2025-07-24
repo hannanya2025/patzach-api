@@ -4,15 +4,21 @@ import bodyParser from 'body-parser';
 import cors from 'cors';
 import dotenv from 'dotenv';
 
-dotenv.config(); // טוען את .env
+dotenv.config(); // טוען את קובץ .env
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors());
+// ✅ הגדרת CORS שמאפשרת רק מהדומיין שלך
+app.use(cors({
+  origin: 'https://www.25ros.com',
+  methods: ['POST'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 app.use(bodyParser.json());
 
-const OPENAI_KEY = process.env.OPENAI_API_KEY; // שים לב לשם!
+const OPENAI_KEY = process.env.OPENAI_API_KEY; // ודא שזה בדיוק אותו השם ב-.env
 
 app.post('/api/patzach', async (req, res) => {
   const { history, sessionId } = req.body;
@@ -25,7 +31,7 @@ app.post('/api/patzach', async (req, res) => {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: "gpt-4",
+        model: 'gpt-4',
         messages: history,
         temperature: 0.7
       })

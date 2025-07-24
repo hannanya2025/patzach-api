@@ -1,11 +1,14 @@
 import express from 'express';
 import bodyParser from 'body-parser';
 import { OpenAI } from 'openai';
+import dotenv from 'dotenv';
+
+dotenv.config(); // ⬅️ חובה כדי שה־API KEY יעבוד
 
 const app = express();
 app.use(bodyParser.json());
 
-// הגדר את ה־API Key שלך כאן
+// את ה־API Key הוא יקבל עכשיו מתוך משתני הסביבה ב־Render
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });

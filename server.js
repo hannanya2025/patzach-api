@@ -9,28 +9,18 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-const ALLOWED_ORIGINS = [
-  'https://www.25ros.com',
-  'https://www-25ros-com.filesusr.com'
-];
-
-// ✅ CORS מסודר
-app.use(cors({
-  origin: function (origin, callback) {
-    // local test or no origin (like Postman) = allow
-    if (!origin || ALLOWED_ORIGINS.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  methods: ['POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
+// ✅ פתוח לכולם – לא מאובטח! לשימוש זמני בלבד
+app.use(cors()); 
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*'); // 👈 פתוח לכולם
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  next();
+});
 
 app.use(bodyParser.json());
 
-// 🔐 מפתח API
+// מפתח ה-API של OpenAI
 const OPENAI_KEY = process.env.OPENAI_API_KEY;
 
 app.post('/api/patzach', async (req, res) => {

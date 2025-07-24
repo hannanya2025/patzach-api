@@ -1,4 +1,3 @@
-
 import express from 'express';
 import fetch from 'node-fetch';
 import bodyParser from 'body-parser';
@@ -35,7 +34,6 @@ app.post('/api/patzach', async (req, res) => {
   if (!memory[sessionId]) {
     memory[sessionId] = {
       userName: null,
-      businessName: null,
       introDone: false
     };
   }
@@ -68,7 +66,6 @@ app.post('/api/patzach', async (req, res) => {
 תמיד תדבר בטון אנושי, בגובה העיניים, כדמות מוכר בלבד. לעולם אל תסביר תיאוריה או תהליכים. לעולם אל תצא מהדמות.
 `;
 
-  // דינמיקה לפי זיכרון
   if (!session.introDone) {
     session.introDone = true;
     saveMemory();

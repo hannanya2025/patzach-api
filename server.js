@@ -1,31 +1,24 @@
-// server.js
+
 import express from 'express';
 import fetch from 'node-fetch';
 import bodyParser from 'body-parser';
 import fs from 'fs';
 
 const app = express();
-const PORT = process.env.PORT || 3000;
-const OPENAI_KEY = process.env.OPENAI_KEY;
-const memoryPath = './yoav-memory.json';
-
-// Load memory from file
-function loadMemory() {
-  if (!fs.existsSync(memoryPath)) {
-    fs.writeFileSync(memoryPath, JSON.stringify({}));
-  }
-  return JSON.parse(fs.readFileSync(memoryPath, 'utf-8'));
-}
-
-// Update memory with new data
-function updateMemory(updates) {
-  const current = loadMemory();
-  const updated = { ...current, ...updates };
-  fs.writeFileSync(memoryPath, JSON.stringify(updated, null, 2));
-  return updated;
-}
-
 app.use(bodyParser.json());
+
+const OPENAI_KEY = process.env.OPENAI_KEY;
+const MEMORY_FILE = './yoav-memory.json';
+
+let memory = {};
+if (fs.existsSync(MEMORY_FILE)) {
+  memory = JSON.parse(fs.readFileSync(MEMORY_FILE, 'utf-8'));
+}
+
+function saveMemory() {
+  fs.writeFileSync(MEMORY_FILE, JSON.stringify(memory, null, 2));
+}
+
 app.use((req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
   res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
@@ -33,36 +26,65 @@ app.use((req, res, next) => {
 });
 
 app.post('/api/patzach', async (req, res) => {
-  const { history, userMessage } = req.body;
-  let memory = loadMemory();
+  const { history, sessionId } = req.body;
 
-  // Handle missing name
-  if (!memory.name && memory.lastQuestion !== 'name') {
-    updateMemory({ lastQuestion: 'name' });
-    return res.json({ reply: "איך לקרוא לך?" });
-  }
-  if (memory.lastQuestion === 'name') {
-    updateMemory({ name: userMessage, lastQuestion: null });
-    return res.json({ reply: `נעים מאוד, ${userMessage}. איך לקרוא לעסק שלך?` });
+  if (!sessionId) {
+    return res.status(400).json({ reply: "חסרה מזהה סשן" });
   }
 
-  // Handle missing business
-  if (!memory.business && memory.lastQuestion !== 'business') {
-    updateMemory({ lastQuestion: 'business' });
-    return res.json({ reply: "איך לקרוא לעסק שלך?" });
-  }
-  if (memory.lastQuestion === 'business') {
-    updateMemory({ business: userMessage, lastQuestion: null });
-    return res.json({ reply: `מצוין, ${memory.name}. רוצה שנפצח התנגדות אמיתית או שנעבוד על סימולציה?` });
+  if (!memory[sessionId]) {
+    memory[sessionId] = {
+      userName: null,
+      businessName: null,
+      introDone: false
+    };
   }
 
-  // Build the full message sequence
-  const systemPrompt = {
-    role: "system",
-    content: `אתה יואב – עוזר AI מתקדם לפיצוח התנגדויות בשיווק ובמכירה. ... (כל ההנחיות המלאות שלך כאן)`
-  };
+  const session = memory[sessionId];
+  const lastUserMessage = history.filter(msg => msg.role === 'user').pop()?.content?.trim() || '';
 
-  const messages = [systemPrompt, ...history];
+  let systemPromptContent = `
+אתה יואב – מפצח ההתנגדויות מבית LEVEL UP. תמיד תפתח את השיחה כך:
+"שלום, כאן יואב – מפצח ההתנגדויות מבית LEVEL UP. מה שמך?"
+
+אם המשתמש נתן שם, שאל מיד:
+"מה תרצה לעשות היום – לפתור התנגדות אמיתית או לעשות סימולציה?"
+
+אם הוא בחר התנגדות – שאל לפי הסדר:
+1. מה ההתנגדות ששמעת?
+2. מה אתה מוכר ולמי?
+3. באיזה שלב בשיחה זה נאמר?
+4. מה ענית לו?
+5. מה תרצה שיקרה במקום זה?
+
+אם הוא בחר סימולציה – שאל:
+1. מה התפקיד שלי?
+2. מה אני מוכר?
+3. מי הלקוח?
+4. מה מטרת הסימולציה?
+
+אם המשתמש כותב "תמציא אתה" – תמציא תרחיש מלא ותתחיל סימולציה.
+
+תמיד תדבר בטון אנושי, בגובה העיניים, כדמות מוכר בלבד. לעולם אל תסביר תיאוריה או תהליכים. לעולם אל תצא מהדמות.
+`;
+
+  // דינמיקה לפי זיכרון
+  if (!session.introDone) {
+    session.introDone = true;
+    saveMemory();
+    return res.json({ reply: "שלום, כאן יואב – מפצח ההתנגדויות מבית LEVEL UP. מה שמך?" });
+  }
+
+  if (!session.userName) {
+    session.userName = lastUserMessage;
+    saveMemory();
+    return res.json({ reply: `${session.userName}, מה תרצה לעשות היום – לפתור התנגדות אמיתית או לעשות סימולציה?` });
+  }
+
+  const messages = [
+    { role: "system", content: systemPromptContent },
+    ...history
+  ];
 
   try {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -86,4 +108,5 @@ app.post('/api/patzach', async (req, res) => {
   }
 });
 
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log('Server started on port', PORT));

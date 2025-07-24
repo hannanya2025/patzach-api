@@ -1,21 +1,31 @@
-import fetch from 'node-fetch';
+import express from 'express';
 import dotenv from 'dotenv';
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`✅ Server running on port ${PORT}`);
-});
+import fetch from 'node-fetch';
+import bodyParser from 'body-parser';
+
 dotenv.config();
 
-const OPENAI_API_KEY = process.env.OPENAI_KEY;
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.use(bodyParser.json());
+
+// בדיקת תקינות פשוטה
+app.get('/', (req, res) => {
+  res.send('Assistant server is running 🎉');
+});
+
+const OPENAI_KEY = process.env.OPENAI_KEY;
 const ASSISTANT_ID = 'asst_G5vNXFXqDXONqfgUwtYYpV1u';
 
-async function runAssistant(messageText) {
+app.post('/ask', async (req, res) => {
+  const messageText = req.body.message;
+
   try {
-    // שלב 1: צור Thread חדש
     const threadRes = await fetch('https://api.openai.com/v1/threads', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Authorization': `Bearer ${OPENAI_KEY}`,
         'OpenAI-Beta': 'assistants=v1',
         'Content-Type': 'application/json',
       },
@@ -24,11 +34,10 @@ async function runAssistant(messageText) {
     const thread = await threadRes.json();
     const threadId = thread.id;
 
-    // שלב 2: הוסף הודעה ל-thread
     await fetch(`https://api.openai.com/v1/threads/${threadId}/messages`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Authorization': `Bearer ${OPENAI_KEY}`,
         'OpenAI-Beta': 'assistants=v1',
         'Content-Type': 'application/json',
       },
@@ -38,11 +47,10 @@ async function runAssistant(messageText) {
       }),
     });
 
-    // שלב 3: הפעל את האסיסטנט
     const runRes = await fetch(`https://api.openai.com/v1/threads/${threadId}/runs`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Authorization': `Bearer ${OPENAI_KEY}`,
         'OpenAI-Beta': 'assistants=v1',
         'Content-Type': 'application/json',
       },
@@ -54,24 +62,22 @@ async function runAssistant(messageText) {
     const run = await runRes.json();
     const runId = run.id;
 
-    // שלב 4: חכה עד שהריצה מסתיימת (לופ שמחכה)
     let status = run.status;
     while (status !== 'completed' && status !== 'failed') {
       const checkRun = await fetch(`https://api.openai.com/v1/threads/${threadId}/runs/${runId}`, {
         headers: {
-          'Authorization': `Bearer ${OPENAI_API_KEY}`,
+          'Authorization': `Bearer ${OPENAI_KEY}`,
           'OpenAI-Beta': 'assistants=v1',
         }
       });
       const runStatus = await checkRun.json();
       status = runStatus.status;
-      await new Promise(resolve => setTimeout(resolve, 1000)); // חכה שנייה
+      await new Promise(resolve => setTimeout(resolve, 1000));
     }
 
-    // שלב 5: קבל את ההודעה מהאסיסטנט
     const messagesRes = await fetch(`https://api.openai.com/v1/threads/${threadId}/messages`, {
       headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Authorization': `Bearer ${OPENAI_KEY}`,
         'OpenAI-Beta': 'assistants=v1',
       }
     });
@@ -79,13 +85,16 @@ async function runAssistant(messageText) {
     const messages = await messagesRes.json();
     const assistantReply = messages.data.find(msg => msg.role === 'assistant');
 
-    console.log('Assistant:', assistantReply?.content[0]?.text?.value);
-    return assistantReply?.content[0]?.text?.value;
+    const replyText = assistantReply?.content[0]?.text?.value || '🤷‍♂️ No reply';
+
+    res.json({ reply: replyText });
 
   } catch (error) {
     console.error('Assistant Error:', error);
+    res.status(500).json({ error: 'Something went wrong' });
   }
-}
+});
 
-// קריאה לדוגמה:
-runAssistant('שלום! אתה יכול לעזור לי עם משהו?');
+app.listen(PORT, () => {
+  console.log(`🚀 Server is listening on port ${PORT}`);
+});

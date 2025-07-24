@@ -243,9 +243,18 @@ app.post('/api/patzach', async (req, res) => {
     memoryMap.set(sessionId, userMemory);
   }
 
-  const contextMessages = [
-    { role: "system", content: basePrompt },
-  ];
+  let dynamicPrompt = basePrompt;
+
+if (userMemory.context === "simulation") {
+  dynamicPrompt += `\n\n[הקשר נבחר: סימולציה – יואב צריך לאסוף את כל הפרטים לפני התחלה]`;
+} else if (userMemory.context === "objection") {
+  dynamicPrompt += `\n\n[הקשר נבחר: פיצוח התנגדות – יואב צריך לבקש את כל הנתונים לפני התחלה]`;
+}
+
+const contextMessages = [
+  { role: "system", content: dynamicPrompt },
+];
+
 
   if (userMemory.context === "simulation") {
     contextMessages.push({ role: "assistant", content: simulationIntro });

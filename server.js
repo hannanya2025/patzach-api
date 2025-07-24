@@ -1,105 +1,49 @@
 import express from 'express';
-import dotenv from 'dotenv';
 import fetch from 'node-fetch';
-import cors from 'cors';
 import bodyParser from 'body-parser';
-
-dotenv.config();
+import cors from 'cors'; // 👈 הוספת מודול cors
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const OPENAI_KEY = process.env.OPENAI_API_KEY;
-const ASSISTANT_ID = 'asst_G5vNXFXqDXONqfgUwtYYpV1u';
 
-// הגדרת CORS – לא לשים לפני יצירת app!
-app.use(cors({
-  origin: ['https://www.25ros.com'],
-  methods: ['GET', 'POST'],
-  allowedHeaders: ['Content-Type'],
-}));
+// 🧠 פתרון CORS – מאפשר גישה מכל דומיין
+app.use(cors()); // 👈 זו השורה הכי חשובה כאן
 
 app.use(bodyParser.json());
-
-// בדיקת תקינות
-app.get('/', (req, res) => {
-  res.send('Assistant server is running 🎉');
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*"); // ביטחון כפול – למרות שכבר פתרנו עם app.use(cors())
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+  next();
 });
 
-// נקודת POST
-app.post('/ask', async (req, res) => {
-  const messageText = req.body.message;
+const OPENAI_KEY = process.env.OPENAI_KEY;
+
+app.post('/api/patzach', async (req, res) => {
+  const { history, sessionId } = req.body;
 
   try {
-    const threadRes = await fetch('https://api.openai.com/v1/threads', {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${OPENAI_KEY}`,
-        'OpenAI-Beta': 'assistants=v1',
-        'Content-Type': 'application/json',
-      },
-    });
-
-    const thread = await threadRes.json();
-    const threadId = thread.id;
-
-    await fetch(`https://api.openai.com/v1/threads/${threadId}/messages`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENAI_KEY}`,
-        'OpenAI-Beta': 'assistants=v1',
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        role: 'user',
-        content: messageText,
-      }),
+        model: "gpt-4",
+        messages: history,
+        temperature: 0.7
+      })
     });
 
-    const runRes = await fetch(`https://api.openai.com/v1/threads/${threadId}/runs`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENAI_KEY}`,
-        'OpenAI-Beta': 'assistants=v1',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ assistant_id: ASSISTANT_ID }),
-    });
-
-    const run = await runRes.json();
-    const runId = run.id;
-
-    let status = run.status;
-    while (status !== 'completed' && status !== 'failed') {
-      const checkRun = await fetch(`https://api.openai.com/v1/threads/${threadId}/runs/${runId}`, {
-        headers: {
-          'Authorization': `Bearer ${OPENAI_KEY}`,
-          'OpenAI-Beta': 'assistants=v1',
-        }
-      });
-      const runStatus = await checkRun.json();
-      status = runStatus.status;
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    }
-
-    const messagesRes = await fetch(`https://api.openai.com/v1/threads/${threadId}/messages`, {
-      headers: {
-        'Authorization': `Bearer ${OPENAI_KEY}`,
-        'OpenAI-Beta': 'assistants=v1',
-      }
-    });
-
-    const messages = await messagesRes.json();
-    const assistantReply = messages.data.find(msg => msg.role === 'assistant');
-    const replyText = assistantReply?.content[0]?.text?.value || '🤷‍♂️ No reply';
-
-    res.json({ reply: replyText });
-
+    const data = await response.json();
+    const reply = data.choices?.[0]?.message?.content || 'לא הצלחתי להבין את הבקשה.';
+    res.json({ reply });
   } catch (error) {
-    console.error('Assistant Error:', error);
-    res.status(500).json({ error: 'Something went wrong' });
+    console.error('שגיאה בשרת:', error);
+    res.status(500).json({ reply: 'אירעה שגיאה, נסה שוב מאוחר יותר.' });
   }
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 Server is listening on port ${PORT}`);
+  console.log(`🔥 השרת רץ על פורט ${PORT}`);
 });

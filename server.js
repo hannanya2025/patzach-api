@@ -2,17 +2,22 @@ import express from 'express';
 import cors from 'cors';
 import fetch from 'node-fetch';
 import dotenv from 'dotenv';
-dotenv.config();
+
+dotenv.config(); // טוען את .env
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-// פתיחת ה-CORS לכל הדומיינים
 app.use(cors());
 app.use(express.json());
 
 app.post('/api/patzach', async (req, res) => {
   const { history } = req.body;
+
+  if (!process.env.OPENAI_KEY) {
+    console.error('OPENAI_KEY is missing');
+    return res.status(500).json({ error: 'OPENAI_KEY is missing' });
+  }
 
   try {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -31,12 +36,13 @@ app.post('/api/patzach', async (req, res) => {
     const data = await response.json();
 
     if (!response.ok) {
+      console.error('OpenAI error:', data);
       return res.status(500).json({ error: data });
     }
 
     res.json({ reply: data.choices[0].message.content });
   } catch (error) {
-    console.error(error);
+    console.error('Server error:', error);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });

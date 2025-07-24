@@ -1,11 +1,15 @@
 {
-  "name": "patzach-api",
+  "name": "yoav-chatbot",
   "version": "1.0.0",
   "main": "server.js",
   "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
   "dependencies": {
     "express": "^4.18.2",
     "node-fetch": "^2.6.7",
-    "body-parser": "^1.20.2"
+    "body-parser": "^1.20.2",
+    "fs": "^0.0.1-security"
   }
 }

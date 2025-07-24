@@ -1,55 +1,44 @@
 import express from 'express';
 import cors from 'cors';
-import bodyParser from 'body-parser';
 import fetch from 'node-fetch';
 
 const app = express();
+const port = process.env.PORT || 3000;
 
-// פתרון CORS כולל!
-app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
-
-app.use(bodyParser.json());
-
-const OPENAI_KEY = process.env.OPENAI_KEY;
-
-// בדיקת מפתח
-if (!OPENAI_KEY) {
-  console.error("❌ MISSING OpenAI API KEY");
-}
+// פתיחת ה-CORS לכל הדומיינים
+app.use(cors());
+app.use(express.json());
 
 app.post('/api/patzach', async (req, res) => {
   const { history } = req.body;
 
-  if (!OPENAI_KEY) {
-    return res.status(500).json({ error: "Missing OpenAI key." });
-  }
-
   try {
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
       headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${OPENAI_KEY}`,
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.OPENAI_KEY}`
       },
       body: JSON.stringify({
-        model: "gpt-4o",
+        model: 'gpt-4o',
         messages: history,
-      }),
+        temperature: 0.7
+      })
     });
 
     const data = await response.json();
-    res.json(data);
+
+    if (!response.ok) {
+      return res.status(500).json({ error: data });
+    }
+
+    res.json({ reply: data.choices[0].message.content });
   } catch (error) {
-    console.error("🔥 OpenAI Error:", error);
-    res.status(500).json({ error: "Internal server error" });
+    console.error(error);
+    res.status(500).json({ error: 'Internal Server Error' });
   }
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+app.listen(port, () => {
+  console.log(`Server is running on port ${port}`);
 });

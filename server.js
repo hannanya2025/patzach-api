@@ -1,22 +1,23 @@
 import express from 'express';
 import dotenv from 'dotenv';
 import fetch from 'node-fetch';
-import bodyParser from 'body-parser';
 import cors from 'cors';
+import bodyParser from 'body-parser';
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const OPENAI_KEY = process.env.OPENAI_API_KEY;
+const ASSISTANT_ID = 'asst_G5vNXFXqDXONqfgUwtYYpV1u';
 
-// הגדרת CORS
+// הגדרת CORS – לא לשים לפני יצירת app!
 app.use(cors({
-  origin: ['https://www.25ros.com'], // או '*' אם אתה בפיתוח
+  origin: ['https://www.25ros.com'],
   methods: ['GET', 'POST'],
   allowedHeaders: ['Content-Type'],
 }));
 
-// הגדרת JSON parsing
 app.use(bodyParser.json());
 
 // בדיקת תקינות
@@ -24,14 +25,11 @@ app.get('/', (req, res) => {
   res.send('Assistant server is running 🎉');
 });
 
-const OPENAI_KEY = process.env.OPENAI_API_KEY;
-const ASSISTANT_ID = 'asst_G5vNXFXqDXONqfgUwtYYpV1u';
-
+// נקודת POST
 app.post('/ask', async (req, res) => {
   const messageText = req.body.message;
 
   try {
-    // יצירת thread חדש
     const threadRes = await fetch('https://api.openai.com/v1/threads', {
       method: 'POST',
       headers: {
@@ -44,7 +42,6 @@ app.post('/ask', async (req, res) => {
     const thread = await threadRes.json();
     const threadId = thread.id;
 
-    // שליחת הודעה ל-thread
     await fetch(`https://api.openai.com/v1/threads/${threadId}/messages`, {
       method: 'POST',
       headers: {
@@ -58,7 +55,6 @@ app.post('/ask', async (req, res) => {
       }),
     });
 
-    // יצירת ריצה עבור האסיסטנט
     const runRes = await fetch(`https://api.openai.com/v1/threads/${threadId}/runs`, {
       method: 'POST',
       headers: {
@@ -66,15 +62,12 @@ app.post('/ask', async (req, res) => {
         'OpenAI-Beta': 'assistants=v1',
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        assistant_id: ASSISTANT_ID
-      }),
+      body: JSON.stringify({ assistant_id: ASSISTANT_ID }),
     });
 
     const run = await runRes.json();
     const runId = run.id;
 
-    // המתנה לסיום הריצה
     let status = run.status;
     while (status !== 'completed' && status !== 'failed') {
       const checkRun = await fetch(`https://api.openai.com/v1/threads/${threadId}/runs/${runId}`, {
@@ -88,7 +81,6 @@ app.post('/ask', async (req, res) => {
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
 
-    // קבלת תשובת האסיסטנט
     const messagesRes = await fetch(`https://api.openai.com/v1/threads/${threadId}/messages`, {
       headers: {
         'Authorization': `Bearer ${OPENAI_KEY}`,
@@ -98,7 +90,6 @@ app.post('/ask', async (req, res) => {
 
     const messages = await messagesRes.json();
     const assistantReply = messages.data.find(msg => msg.role === 'assistant');
-
     const replyText = assistantReply?.content[0]?.text?.value || '🤷‍♂️ No reply';
 
     res.json({ reply: replyText });
@@ -109,7 +100,6 @@ app.post('/ask', async (req, res) => {
   }
 });
 
-// הפעלת השרת
 app.listen(PORT, () => {
   console.log(`🚀 Server is listening on port ${PORT}`);
 });

@@ -1,77 +1,88 @@
-import express from 'express';
-import bodyParser from 'body-parser';
-import cors from 'cors';
-import { OpenAI } from 'openai';
+import fetch from 'node-fetch';
+import dotenv from 'dotenv';
 
-const app = express();
+dotenv.config();
 
-// הגדרות בסיס
-app.use(bodyParser.json());
-app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST'],
-  allowedHeaders: ['Content-Type'],
-}));
+const OPENAI_API_KEY = process.env.OPENAI_KEY;
+const ASSISTANT_ID = 'asst_G5vNXFXqDXONqfgUwtYYpV1u';
 
-// הגדרת OpenAI עם מפתח מתוך הסביבה
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
-// מזהה האסיסטנט שלך – יואב
-const ASSISTANT_ID = 'asst_GsVNXFqDX0NqfgbUwtYYpV1u';
-
-// ניהול מזהי session → thread
-const sessions = {};
-
-app.post('/api/patzach', async (req, res) => {
+async function runAssistant(messageText) {
   try {
-    const { history, sessionId } = req.body;
-
-    if (!history || !sessionId) {
-      return res.status(400).json({ error: 'Missing history or sessionId' });
-    }
-
-    // צור thread חדש אם אין כזה
-    if (!sessions[sessionId]) {
-      const thread = await openai.beta.threads.create();
-      sessions[sessionId] = thread.id;
-    }
-
-    const threadId = sessions[sessionId];
-
-    // הוסף הודעת משתמש ל-thread
-    const userMessage = history[history.length - 1]?.content || '';
-    await openai.beta.threads.messages.create(threadId, {
-      role: 'user',
-      content: userMessage,
+    // שלב 1: צור Thread חדש
+    const threadRes = await fetch('https://api.openai.com/v1/threads', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'OpenAI-Beta': 'assistants=v1',
+        'Content-Type': 'application/json',
+      },
     });
 
-    // הפעל את האסיסטנט
-    const run = await openai.beta.threads.runs.create(threadId, {
-      assistant_id: ASSISTANT_ID,
+    const thread = await threadRes.json();
+    const threadId = thread.id;
+
+    // שלב 2: הוסף הודעה ל-thread
+    await fetch(`https://api.openai.com/v1/threads/${threadId}/messages`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'OpenAI-Beta': 'assistants=v1',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        role: 'user',
+        content: messageText,
+      }),
     });
 
-    // המתן עד שהריצה תסתיים
-    let runStatus;
-    do {
-      await new Promise((r) => setTimeout(r, 1000));
-      runStatus = await openai.beta.threads.runs.retrieve(threadId, run.id);
-    } while (runStatus.status !== 'completed');
+    // שלב 3: הפעל את האסיסטנט
+    const runRes = await fetch(`https://api.openai.com/v1/threads/${threadId}/runs`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'OpenAI-Beta': 'assistants=v1',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        assistant_id: ASSISTANT_ID
+      }),
+    });
 
-    // קבל את התגובה האחרונה
-    const messages = await openai.beta.threads.messages.list(threadId);
-    const assistantReply = messages.data.find((msg) => msg.role === 'assistant');
+    const run = await runRes.json();
+    const runId = run.id;
 
-    const replyText = assistantReply?.content?.[0]?.text?.value || '';
+    // שלב 4: חכה עד שהריצה מסתיימת (לופ שמחכה)
+    let status = run.status;
+    while (status !== 'completed' && status !== 'failed') {
+      const checkRun = await fetch(`https://api.openai.com/v1/threads/${threadId}/runs/${runId}`, {
+        headers: {
+          'Authorization': `Bearer ${OPENAI_API_KEY}`,
+          'OpenAI-Beta': 'assistants=v1',
+        }
+      });
+      const runStatus = await checkRun.json();
+      status = runStatus.status;
+      await new Promise(resolve => setTimeout(resolve, 1000)); // חכה שנייה
+    }
 
-    res.json({ reply: replyText });
-  } catch (err) {
-    console.error('OpenAI Assistant Error:', err);
-    res.status(500).json({ error: 'Internal server error' });
+    // שלב 5: קבל את ההודעה מהאסיסטנט
+    const messagesRes = await fetch(`https://api.openai.com/v1/threads/${threadId}/messages`, {
+      headers: {
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'OpenAI-Beta': 'assistants=v1',
+      }
+    });
+
+    const messages = await messagesRes.json();
+    const assistantReply = messages.data.find(msg => msg.role === 'assistant');
+
+    console.log('Assistant:', assistantReply?.content[0]?.text?.value);
+    return assistantReply?.content[0]?.text?.value;
+
+  } catch (error) {
+    console.error('Assistant Error:', error);
   }
-});
+}
 
-app.listen(3000, () => {
-  console.log('✅ Patzach API running on port 3000');
-});
+// קריאה לדוגמה:
+runAssistant('שלום! אתה יכול לעזור לי עם משהו?');

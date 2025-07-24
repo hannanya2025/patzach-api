@@ -15,7 +15,8 @@ app.get('/', (req, res) => {
   res.send('Assistant server is running 🎉');
 });
 
-const OPENAI_KEY = process.env.OPENAI_KEY;
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+
 const ASSISTANT_ID = 'asst_G5vNXFXqDXONqfgUwtYYpV1u';
 
 app.post('/ask', async (req, res) => {

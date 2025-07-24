@@ -4,24 +4,33 @@ import bodyParser from 'body-parser';
 import cors from 'cors';
 import dotenv from 'dotenv';
 
-dotenv.config(); // טוען את קובץ .env
+dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const ALLOWED_ORIGIN = 'https://www.25ros.com';
 
-// ✅ הגדרת CORS שמאפשרת רק מהדומיין שלך
+// 🔐 Middleware – CORS אוטומטי
 app.use(cors({
-  origin: 'https://www.25ros.com',
-  methods: ['POST'],
+  origin: ALLOWED_ORIGIN,
+  methods: ['POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
+// 🔐 Middleware – תוספת ידנית ל-Render ולדפדפן
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGIN);
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  next();
+});
+
 app.use(bodyParser.json());
 
-const OPENAI_KEY = process.env.OPENAI_API_KEY; // ודא שזה בדיוק אותו השם ב-.env
+const OPENAI_KEY = process.env.OPENAI_API_KEY;
 
 app.post('/api/patzach', async (req, res) => {
-  const { history, sessionId } = req.body;
+  const { history } = req.body;
 
   try {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -44,6 +53,11 @@ app.post('/api/patzach', async (req, res) => {
     console.error('שגיאה בשרת:', error);
     res.status(500).json({ reply: 'אירעה שגיאה, נסה שוב מאוחר יותר.' });
   }
+});
+
+// 🧪 טיפול בבקשות OPTIONS מראש (Preflight)
+app.options('/api/patzach', (req, res) => {
+  res.sendStatus(204);
 });
 
 app.listen(PORT, () => {

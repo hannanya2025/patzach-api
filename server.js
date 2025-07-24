@@ -1,41 +1,55 @@
 import express from 'express';
-import bodyParser from 'body-parser';
 import cors from 'cors';
+import bodyParser from 'body-parser';
 import fetch from 'node-fetch';
 
 const app = express();
-const PORT = process.env.PORT || 3000;
 
-// אפשר לכל העולם – פתוח לניסויים
-app.use(cors());
+// פתרון CORS כולל!
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 
-// פרסינג לבאדי
 app.use(bodyParser.json());
 
-app.post('/api/patzach', async (req, res) => {
-  try {
-    const { history } = req.body;
+const OPENAI_KEY = process.env.OPENAI_KEY;
 
-    const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
+// בדיקת מפתח
+if (!OPENAI_KEY) {
+  console.error("❌ MISSING OpenAI API KEY");
+}
+
+app.post('/api/patzach', async (req, res) => {
+  const { history } = req.body;
+
+  if (!OPENAI_KEY) {
+    return res.status(500).json({ error: "Missing OpenAI key." });
+  }
+
+  try {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${process.env.OPENAI_KEY}`
+        Authorization: `Bearer ${OPENAI_KEY}`,
       },
       body: JSON.stringify({
-        model: "gpt-4",
-        messages: history
-      })
+        model: "gpt-4o",
+        messages: history,
+      }),
     });
 
-    const data = await openaiRes.json();
+    const data = await response.json();
     res.json(data);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'משהו השתבש, נסה שוב' });
+  } catch (error) {
+    console.error("🔥 OpenAI Error:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`🔥 Patzach API server is running on port ${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
 });

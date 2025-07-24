@@ -4,31 +4,20 @@ import bodyParser from 'body-parser';
 import cors from 'cors';
 import dotenv from 'dotenv';
 
-dotenv.config(); // טוען משתני סביבה מקובץ .env
+dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ✅ דומיינים שמורשים לשלוח בקשות לשרת הזה
 const ALLOWED_ORIGINS = [
   'https://www.25ros.com',
-  'https://www-25ros-com.filesusr.com' // 👈 זה הדומיין של WIX/filesusr
+  'https://www-25ros-com.filesusr.com'
 ];
 
-// ✅ הגדרת CORS חכמה
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  if (ALLOWED_ORIGINS.includes(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-  }
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  next();
-});
-
-// גם הפעלת cors() הרשמית (בשביל ספריות שמשתמשות בו)
+// ✅ CORS מסודר
 app.use(cors({
-  origin: (origin, callback) => {
+  origin: function (origin, callback) {
+    // local test or no origin (like Postman) = allow
     if (!origin || ALLOWED_ORIGINS.includes(origin)) {
       callback(null, true);
     } else {
@@ -41,7 +30,7 @@ app.use(cors({
 
 app.use(bodyParser.json());
 
-// מפתח ה-API של OpenAI
+// 🔐 מפתח API
 const OPENAI_KEY = process.env.OPENAI_API_KEY;
 
 app.post('/api/patzach', async (req, res) => {

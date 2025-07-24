@@ -9,18 +9,41 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ✅ פתוח לכולם – לא מאובטח! לשימוש זמני בלבד
-app.use(cors()); 
+// ✨ כולל את שני הדומיינים הרלוונטיים (Wix + הראשי שלך)
+const ALLOWED_ORIGINS = [
+  'https://www.25ros.com',
+  'https://www-25ros-com.filesusr.com'
+];
+
+// 🌐 טיפול מותאם ב-CORS
 app.use((req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', '*'); // 👈 פתוח לכולם
+  const origin = req.headers.origin;
+  if (ALLOWED_ORIGINS.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(204); // טיפול בבקשות preflight
+  }
   next();
 });
 
+// גם ה-cors הרשמי בשביל ספריות
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  methods: ['POST'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 app.use(bodyParser.json());
 
-// מפתח ה-API של OpenAI
 const OPENAI_KEY = process.env.OPENAI_API_KEY;
 
 app.post('/api/patzach', async (req, res) => {

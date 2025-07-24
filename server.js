@@ -1,14 +1,19 @@
 import express from 'express';
 import bodyParser from 'body-parser';
+import cors from 'cors';
 import { OpenAI } from 'openai';
-import dotenv from 'dotenv';
-
-dotenv.config(); // ⬅️ חובה כדי שה־API KEY יעבוד
 
 const app = express();
-app.use(bodyParser.json());
 
-// את ה־API Key הוא יקבל עכשיו מתוך משתני הסביבה ב־Render
+// הגדרות בסיס
+app.use(bodyParser.json());
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST'],
+  allowedHeaders: ['Content-Type'],
+}));
+
+// הגדרת OpenAI עם מפתח מתוך הסביבה
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
@@ -16,7 +21,7 @@ const openai = new OpenAI({
 // מזהה האסיסטנט שלך – יואב
 const ASSISTANT_ID = 'asst_GsVNXFqDX0NqfgbUwtYYpV1u';
 
-// ניהול sessionIds → threadIds
+// ניהול מזהי session → thread
 const sessions = {};
 
 app.post('/api/patzach', async (req, res) => {
@@ -27,7 +32,7 @@ app.post('/api/patzach', async (req, res) => {
       return res.status(400).json({ error: 'Missing history or sessionId' });
     }
 
-    // צור Thread חדש אם אין כזה
+    // צור thread חדש אם אין כזה
     if (!sessions[sessionId]) {
       const thread = await openai.beta.threads.create();
       sessions[sessionId] = thread.id;
@@ -35,30 +40,28 @@ app.post('/api/patzach', async (req, res) => {
 
     const threadId = sessions[sessionId];
 
-    // הוסף את ההודעה האחרונה של המשתמש ל-thread
+    // הוסף הודעת משתמש ל-thread
     const userMessage = history[history.length - 1]?.content || '';
     await openai.beta.threads.messages.create(threadId, {
       role: 'user',
       content: userMessage,
     });
 
-    // צור הפעלה של האסיסטנט
+    // הפעל את האסיסטנט
     const run = await openai.beta.threads.runs.create(threadId, {
       assistant_id: ASSISTANT_ID,
     });
 
-    // המתן לסיום הריצה
+    // המתן עד שהריצה תסתיים
     let runStatus;
     do {
       await new Promise((r) => setTimeout(r, 1000));
       runStatus = await openai.beta.threads.runs.retrieve(threadId, run.id);
     } while (runStatus.status !== 'completed');
 
-    // קבל את התגובה האחרונה של האסיסטנט
+    // קבל את התגובה האחרונה
     const messages = await openai.beta.threads.messages.list(threadId);
-    const assistantReply = messages.data.find(
-      (msg) => msg.role === 'assistant'
-    );
+    const assistantReply = messages.data.find((msg) => msg.role === 'assistant');
 
     const replyText = assistantReply?.content?.[0]?.text?.value || '';
 

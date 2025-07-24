@@ -2,6 +2,11 @@ import express from 'express';
 import dotenv from 'dotenv';
 import fetch from 'node-fetch';
 import bodyParser from 'body-parser';
+app.use(cors({
+  origin: ['https://www.25ros.com'], // או '*' אם אתה רק בודק
+  methods: ['GET', 'POST'],
+  allowedHeaders: ['Content-Type'],
+}));
 
 dotenv.config();
 
